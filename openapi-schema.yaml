@@ -1,0 +1,371 @@
+openapi: 3.0.0
+info:
+  title: Carsharing API Authentication
+  version: 1.0.0
+servers:
+  - url: <YOUR_BASE_URL>
+paths:
+  /gpt-carsharing-agent/auth:
+    get:
+      summary: Retreive the customerId and unique authentication id
+      description: Authenticates the user in case we get unauthorized responses from our carsharing endpoints
+      operationId: Basic Authentication
+      responses:
+        "200":
+          description: Token created or retrieved successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    description: The access token generated or retrieved.
+                  id:
+                    type: string
+                    description: Unique identifier for the token.
+                  timeout:
+                    type: string
+                    format: date-time
+                    description: Time when the token will no longer be valid for operations that could be completed earlier.
+                  expiry:
+                    type: string
+                    format: date-time
+                    description: Expiration time of the token.
+                  customerId:
+                    type: string
+                    description: Customer ID associated with the token.
+        "400":
+          description: Invalid request parameters or missing required fields.
+        "401":
+          description: Authentication failed due to invalid credentials.
+      security:
+        - ApiKeyAuth: []
+  /gpt-carsharing-agent/cars:
+    get:
+      summary: Retrieve a list of available cars
+      operationId: cars
+      description: Retrieves a complete list of all cars no matter whether they're available for the given start/end dates.
+      parameters:
+        - in: query
+          name: lat
+          required: true
+          schema:
+            type: string
+          description: Latitude coordinate of the user's base starting point.
+          default: 47.9969
+        - in: query
+          name: lng
+          required: true
+          schema:
+            type: string
+          description: Longitude coordinate of the user's base starting point.
+          default: 7.8398
+        - in: query
+          name: range
+          schema:
+            type: string
+          description: Range in meters that is used as a radius to look for cars. Use default is not specified otherwise.
+          default: 1000
+        - in: query
+          name: start
+          required: true
+          schema:
+            type: string
+            format: date-time
+            description: Start time in ISO 8601 UTC format.
+          example: 2024-04-12T19:00:00Z
+        - in: query
+          name: end
+          required: true
+          schema:
+            type: string
+            format: date-time
+            description: End time in ISO 8601 UTC format.
+          example: 2024-04-12T120:00:00Z
+      responses:
+        "200":
+          description: A list of points of interest including places and cars.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Car"
+  /gpt-carsharing-agent/reservation:
+    get:
+      summary: Make a specific reservation for a car
+      operationId: reservation
+      description: Makes a reservation for a specific car and start/end date-time
+      parameters:
+        - in: query
+          name: start
+          required: true
+          schema:
+            type: string
+            format: date-time
+            description: Start time in ISO 8601 UTC format.
+          example: 2024-04-12T19:00:00Z
+        - in: query
+          name: end
+          required: true
+          example: 2024-04-12T120:00:00Z
+          schema:
+            type: string
+            format: date-time
+            description: End time in ISO 8601 UTC format.
+        - in: query
+          name: bookeeId
+          required: true
+          example: 20229
+          schema:
+            type: string
+            description: The id of the car to reserve
+      responses:
+        "200":
+          description: An object containing a unique reservation id to confirm the reservation
+          content:
+            application/json:
+              schema:
+                type: object
+                $ref: "#/components/schemas/Reservation"
+        "400":
+          description: The reservation can't be made because it's not available any longer
+  /gpt-carsharing-agent/book:
+    get:
+      summary: Create a booking for a reservation id
+      operationId: book
+      description: Creates a booking for a specific car given a reservation id (from /reservation endpoint)
+      parameters:
+        - in: query
+          name: reservationId
+          required: true
+          schema:
+            type: string
+            description: The unique reservation id to make a booking for
+          example: 9Fx92r3GUugBWUKhFsvHgIV5d3i3pxq6JFniw8-3YEud
+      responses:
+        "200":
+          description: An object containing a unique booking id to confirm the booking
+          content:
+            application/json:
+              schema:
+                type: object
+                $ref: "#/components/schemas/Booking"
+        "400":
+          description: The booking can't be made for whatever reason (probably incorrect reservation id)
+  /gpt-carsharing-agent/bookings:
+    get:
+      summary: List all current bookings
+      operationId: listbookings
+      description: Lists all current bookings
+      responses:
+        "200":
+          description: An object containing the bookings
+          content:
+            application/json:
+              schema:
+                type: object
+                $ref: "#/components/schemas/BookingListItem"
+  /gpt-carsharing-agent/cancel:
+    get:
+      summary: Cancel a specific booking
+      operationId: cancel
+      description: Cancel a specific  booking
+      parameters:
+        - in: query
+          name: bookingId
+          required: true
+          schema:
+            type: string
+            description: The unique booking id
+          example: 131_1995963
+      responses:
+        "200":
+          description: Success
+  /gpt-carsharing-agent/cancel-confirm:
+    get:
+      summary: Confirm the cancellation of a specific booking
+      operationId: cancelconfirm
+      description: Confirm the cancellation of a specific booking
+      parameters:
+        - in: query
+          name: cancellationId
+          required: true
+          schema:
+            type: string
+            description: The cancellation id
+          example: ZupLy2uA8FNPZKGIJmH9vD5Kez1ca3K1pmkIpEM4qDfs
+      responses:
+        "200":
+          description: An object containing the cancellation confirmation
+          content:
+            application/json:
+              schema:
+                type: object
+                $ref: "#/components/schemas/CancellationConfirmation"
+components:
+  schemas:
+    Car:
+      type: object
+      properties:
+        id:
+          type: string
+        geoCoordinate:
+          $ref: "#/components/schemas/GeoCoordinate"
+        places:
+          type: array
+          items:
+            $ref: "#/components/schemas/Place"
+    GeoCoordinate:
+      type: object
+      properties:
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+    TimeRange:
+      type: object
+      properties:
+        start:
+          type: string
+          format: date-time
+          description: Time when the token will no longer be valid for operations that could be completed earlier.
+        end:
+          type: string
+          format: date-time
+          description: Time when the token will no longer be valid for operations that could be completed earlier.
+    Place:
+      type: object
+      properties:
+        id:
+          type: string
+        provId:
+          type: string
+        name:
+          type: string
+        geoCoordinate:
+          $ref: "#/components/schemas/GeoCoordinate"
+        isFixed:
+          type: boolean
+        bookees:
+          type: array
+          items:
+            $ref: "#/components/schemas/Bookee"
+        address:
+          $ref: "#/components/schemas/Address"
+        poolElementCount:
+          type: integer
+        distance:
+          type: number
+          format: double
+    Bookee:
+      type: object
+      properties:
+        id:
+          type: string
+        provId:
+          type: string
+        name:
+          type: string
+        isPool:
+          type: boolean
+        displayName:
+          type: string
+        locality:
+          type: string
+        slotBased:
+          type: boolean
+        fuelLevel:
+          type: number
+        isElectroMobile:
+          type: boolean
+        licenseNumber:
+          type: string
+        bookeeType:
+          $ref: "#/components/schemas/BookeeType"
+        useMode:
+          type: string
+        returnLocation:
+          type: string
+        instantAccess:
+          type: boolean
+        advanceBooking:
+          type: boolean
+        openEnd:
+          type: boolean
+        bookableOnPremises:
+          type: boolean
+        bookableRemote:
+          type: boolean
+        poolElementCount:
+          type: integer
+    BookeeType:
+      type: object
+      properties:
+        id:
+          type: string
+        provId:
+          type: string
+        name:
+          type: string
+    Address:
+      type: object
+      properties:
+        street:
+          type: string
+        streetNr:
+          type: string
+        postalCode:
+          type: string
+        city:
+          type: string
+        country:
+          type: string
+    Reservation:
+      type: object
+      properties:
+        id:
+          type: string
+          description: The unique reservation id that is used to confirm a reservation
+        timeRange:
+          $ref: "#/components/schemas/TimeRange"
+        bookeeId:
+          type: string
+          description: The id of the car in question
+    Booking:
+      type: object
+      properties:
+        id:
+          type: string
+          description: The booking id
+        timeRange:
+          $ref: "#/components/schemas/TimeRange"
+    BookingListItem:
+      type: object
+      properties:
+        id:
+          type: string
+          description: The booking id
+        timeRange:
+          $ref: "#/components/schemas/TimeRange"
+        bookeeId:
+          type: string
+          example: B131_1945963
+    CancellationConfirmation:
+      type: object
+      properties:
+        id:
+          type: string
+          description: The booking that was cancelled
+        timeRange:
+          $ref: "#/components/schemas/TimeRange"
+        cancelled:
+          type: boolean
+          description: Whether the booking was indeed cancelled or not
+  securitySchemes:
+    BasicAuth:
+      type: http
+      scheme: basic
